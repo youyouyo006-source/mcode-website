@@ -1,1 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M Code Portal</title>
+<style>
+  /* Base layout */
+  body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: black;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+  }
 
+  canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -1;
+  }
+
+  :root {
+    --glow: #00BFFF;
+  }
+
+  /* Login box */
+  .login-box {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--glow);
+    text-shadow: 0 0 15px var(--glow);
+    background: rgba(0, 0, 0, 0.75);
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 0 25px var(--glow), 0 0 50px var(--glow);
+    animation: softPulse 3s infinite ease-in-out;
+  }
+
+  @keyframes softPulse {
+    0% { box-shadow: 0 0 20px var(--glow), 0 0 40px var(--glow); }
+    50% { box-shadow: 0 0 40px var(--glow), 0 0 80px var(--glow); }
+    100% { box-shadow: 0 0 20px var(--glow), 0 0 40px var(--glow); }
+  }
+
+  .hidden { display: none; }
+
+  /* Fade animation for main content */
+  .fade-in {
+    opacity: 0;
+    animation: fadeIn 1.5s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Main content */
+  .content {
+    position: relative;
+    z-index: 1;
+    color: var(--glow);
+    text-align: center;
+    padding-top: 50px;
+    text-shadow: 0 0 10px var(--glow);
+    transition: opacity 1s ease;
+  }
+
+  input, button {
+    padding: 10px;
+    margin: 10px 5px;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+    font-family: monospace;
+    font-size: 1em;
+  }
+
+  input {
+    width: 70%;
+    background: rgba(0,0,0,0.8);
+    color: var(--glow);
+  }
+
+  button {
+    background: var(--glow);
+    color: #000;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+    box-shadow: 0 0 10px var(--glow), 0 0 20px var(--glow), 0 0 40px var(--glow);
+  }
+
+  button:active {
+    animation: pulse 0.3s ease-in-out;
+  }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 10px var(--glow); transform: scale(1);}
+    50% { box-shadow: 0 0 40px var(--glow); transform: scale(1.1);}
+    100% { box-shadow: 0 0 10px var(--glow); transform: scale(1);}
+  }
+
+  #translatorResult {
+    margin-top: 20px;
+    font-size: 1.3em;
+    text-shadow: 0 0 10px var(--glow);
+    transition: 0.3s;
+  }
+
+  .flash {
+    animation: flashGlow 0.6s ease-in-out;
+  }
+
+  @keyframes flashGlow {
+    0% { text-shadow: 0 0 10px var(--glow); color: var(--glow); }
+    50% { text-shadow: 0 0 40px var(--glow); color: #b3ecff; }
+    100% { text-shadow: 0 0 10px var(--glow); color: var(--glow); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+
+<!-- LOGIN -->
+<div class="login-box" id="loginBox">
+  <h1>Login to M Code Portal</h1>
+  <input type="text" id="username" placeholder="Username"><br>
+  <input type="password" id="password" placeholder="Password"><br>
+  <button onclick="login()">Login</button>
+  <button onclick="showSignup()">Sign Up</button>
+  <p id="loginMsg"></p>
+</div>
+
+<!-- SIGNUP -->
+<div class="login-box hidden" id="signupBox">
+  <h1>Create Account</h1>
+  <input type="text" id="newUsername" placeholder="New Username"><br>
+  <input type="password" id="newPassword" placeholder="New Password"><br>
+  <button onclick="signup()">Sign Up</button>
+  <button onclick="backToLogin()">Back</button>
+  <p id="signupMsg"></p>
+</div>
+
+<!-- MAIN APP -->
+<div class="content hidden" id="mainContent">
+  <h1>M Code Translator</h1>
+
+  <div>
+    <label>Text → M Code</label><br>
+    <input type="text" id="textInput" placeholder="Enter text">
+    <button onclick="textToMCode()">Encode</button>
+    <button onclick="clearTextInput()">Clear</button>
+  </div>
+
+  <div>
+    <label>M Code → Text</label><br>
+    <input type="text" id="mcodeInput" placeholder="Enter M Code">
+    <button onclick="mCodeToText()">Decode</button>
+    <button onclick="clearMCodeInput()">Clear</button>
+  </div>
+
+  <p>Result:</p>
+  <p id="translatorResult"></p>
+</div>
+
+<script>
+  // MATRIX BACKGROUND
+  const canvas = document.getElementById('matrixCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
+  const fontSize = 20;
+  const columns = canvas.width / fontSize;
+  const drops = Array(Math.floor(columns)).fill(0);
+
+  function drawMatrix() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00BFFF';
+    ctx.font = fontSize + 'px monospace';
+    for (let i = 0; i < drops.length; i++) {
+      const text = letters[Math.floor(Math.random() * letters.length)];
+      ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+      if (drops[i] * fontSize > canvas.height || Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }
+  setInterval(drawMatrix, 50);
+
+  // M Code maps
+  const mCodeMap = {'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.','H':'....','I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.','O':'---','P':'.--.','Q':'--.-','R':'.-.','S':'...','T':'-','U':'..-','V':'...-','W':'.--','X':'-..-','Y':'-.--','Z':'--..',' ':'/'};
+  const reverseMCodeMap = {}; for (let k in mCodeMap) reverseMCodeMap[mCodeMap[k]]=k;
+
+  function textToMCode() {
+    const input = document.getElementById('textInput').value.toUpperCase();
+    let result = '';
+    for (let char of input) result += mCodeMap[char] ? mCodeMap[char] + ' ' : '';
+    const out = document.getElementById('translatorResult');
+    out.innerText = result.trim();
+    out.classList.add('flash');
+    setTimeout(()=>out.classList.remove('flash'),600);
+  }
+
+  function mCodeToText() {
+    const input = document.getElementById('mcodeInput').value.trim();
+    const codes = input.split(' ');
+    let result = '';
+    for (let code of codes) result += reverseMCodeMap[code] ? reverseMCodeMap[code] : '';
+    const out = document.getElementById('translatorResult');
+    out.innerText = result;
+    out.classList.add('flash');
+    setTimeout(()=>out.classList.remove('flash'),600);
+  }
+
+  function clearTextInput(){document.getElementById('textInput').value='';document.getElementById('translatorResult').innerText='';}
+  function clearMCodeInput(){document.getElementById('mcodeInput').value='';document.getElementById('translatorResult').innerText='';}
+
+  // Account system
+  function showSignup(){document.getElementById('loginBox').classList.add('hidden');document.getElementById('signupBox').classList.remove('hidden');}
+  function backToLogin(){document.getElementById('signupBox').classList.add('hidden');document.getElementById('loginBox').classList.remove('hidden');}
+
+  function signup(){
+    const user=document.getElementById('newUsername').value;
+    const pass=document.getElementById('newPassword').value;
+    if(!user||!pass){document.getElementById('signupMsg').innerText='Fill all fields';return;}
+    localStorage.setItem(user,pass);
+    document.getElementById('signupMsg').innerText='Account created!';
+  }
+
+  function login(){
+    const user=document.getElementById('username').value;
+    const pass=document.getElementById('password').value;
+    const stored=localStorage.getItem(user);
+    if(stored===pass){
+      document.getElementById('loginBox').classList.add('hidden');
+      const main=document.getElementById('mainContent');
+      main.classList.remove('hidden');
+      main.classList.add('fade-in');
+    } else {
+      document.getElementById('loginMsg').innerText='Invalid username or password';
+    }
+  }
+
+  window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;});
+</script>
+</body>
+</html>
